@@ -310,6 +310,7 @@ describe("memory search config", () => {
     if (adapter) {
       await adapter.create({
         provider: resolved?.provider ?? "openai",
+        model: resolved?.model ?? "nomic-embed-text",
         agentDir: "/tmp/agent",
         config: cfg,
         fallback: "none",
