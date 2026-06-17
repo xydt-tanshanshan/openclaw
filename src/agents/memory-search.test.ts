@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import {
   clearMemoryEmbeddingProviders,
-  getMemoryEmbeddingProvider,
   registerMemoryEmbeddingProvider,
 } from "../plugins/memory-embedding-providers.js";
 import { MAX_TIMER_TIMEOUT_MS } from "../shared/number-coercion.js";
