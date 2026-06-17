@@ -267,16 +267,12 @@ describe("memory search config", () => {
     // When the "openai" provider has an explicit api field pointing to a
     // different adapter, generic resolution should route to that adapter
     // instead of short-circuiting on the direct "openai" match.
-    // This also verifies the runtime adapter.create() chain.
-    let createdProvider: string | null = null;
+    // This also verifies actualProvider is set for runtime adapter lookup.
     registerMemoryEmbeddingProvider({
       id: "ollama",
       defaultModel: "nomic-embed-text",
       transport: "remote",
-      create: async (opts) => {
-        createdProvider = opts.provider ?? null;
-        return { provider: null };
-      },
+      create: async () => ({ provider: null }),
     });
     const cfg = asConfig({
       models: {
@@ -300,29 +296,15 @@ describe("memory search config", () => {
     const resolved = resolveMemorySearchConfig(cfg, "main");
     // Config-level: model should come from ollama adapter, not openai
     expect(resolved?.provider).toBe("openai");
+    expect(resolved?.actualProvider).toBe("ollama");
     expect(resolved?.model).toBe("nomic-embed-text");
     expectDefaultRemoteBatch(resolved);
-
-    // Runtime-level: adapter.create() should be callable and receive the
-    // resolved provider id from config
-    const adapter = getMemoryEmbeddingProvider("ollama");
-    expect(adapter).toBeDefined();
-    if (adapter) {
-      await adapter.create({
-        provider: resolved?.provider ?? "openai",
-        model: resolved?.model ?? "nomic-embed-text",
-        agentDir: "/tmp/agent",
-        config: cfg,
-        fallback: "none",
-      });
-      // create() was invoked with the ollama adapter, not openai
-      expect(createdProvider).toBe("openai");
-    }
   });
 
   it("falls back to direct adapter when generic resolution has no matching adapter", () => {
-    // Provider "openai" with a custom baseUrl but no registered adapter for
-    // the resolved generic id should fall back to the direct openai adapter.
+    // Provider "openai" with a custom baseUrl routes to "openai-compatible"
+    // via generic resolution, but since no "openai-compatible" adapter is
+    // registered, the direct openai adapter is used as fallback.
     const cfg = asConfig({
       models: {
         providers: {
@@ -344,6 +326,27 @@ describe("memory search config", () => {
     const resolved = resolveMemorySearchConfig(cfg, "main");
 
     expect(resolved?.provider).toBe("openai");
+    expect(resolved?.actualProvider).toBe("openai-compatible");
+    expect(resolved?.model).toBe("text-embedding-3-small");
+  });
+
+  it("does not set actualProvider when direct provider has no api or baseUrl hints", () => {
+    // When the "openai" provider has no api or baseUrl configured, the
+    // direct adapter is used directly and actualProvider is not set.
+    const cfg = asConfig({
+      agents: {
+        defaults: {
+          memorySearch: {
+            provider: "openai",
+          },
+        },
+      },
+    });
+
+    const resolved = resolveMemorySearchConfig(cfg, "main");
+
+    expect(resolved?.provider).toBe("openai");
+    expect(resolved?.actualProvider).toBeUndefined();
     expect(resolved?.model).toBe("text-embedding-3-small");
   });
 
