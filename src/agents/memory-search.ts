@@ -21,6 +21,7 @@ import {
   type MemoryMultimodalSettings,
 } from "../memory-host-sdk/multimodal.js";
 import { getEmbeddingProvider } from "../plugins/embedding-provider-runtime.js";
+import { resolveConfiguredGenericEmbeddingProviderId } from "../plugins/embedding-provider-config.js";
 import { getMemoryEmbeddingProvider } from "../plugins/memory-embedding-providers.js";
 import { resolveOpenClawAgentSqlitePath } from "../state/openclaw-agent-db.paths.js";
 import { clampInt, clampNumber } from "../utils.js";
@@ -181,6 +182,13 @@ function getConfiguredMemoryEmbeddingProvider(
 ): ReturnType<typeof getMemoryEmbeddingProvider> {
   const directAdapter = getMemoryEmbeddingProvider(providerId);
   if (directAdapter) {
+    const providerConfig = findNormalizedProviderValue(cfg.models?.providers, providerId);
+    if (providerConfig?.baseUrl?.trim() || providerConfig?.api?.trim()) {
+      const resolvedId = resolveConfiguredGenericEmbeddingProviderId(providerId, cfg);
+      if (resolvedId && resolvedId !== normalizeProviderId(providerId)) {
+        return getMemoryEmbeddingProvider(resolvedId, cfg) ?? directAdapter;
+      }
+    }
     return directAdapter;
   }
   const providerConfig = findNormalizedProviderValue(cfg.models?.providers, providerId);
