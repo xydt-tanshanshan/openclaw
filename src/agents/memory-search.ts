@@ -187,8 +187,10 @@ function getConfiguredMemoryEmbeddingProvider(
     if (providerConfig?.baseUrl?.trim() || providerConfig?.api?.trim()) {
       const resolvedId = resolveConfiguredGenericEmbeddingProviderId(providerId, cfg);
       if (resolvedId && resolvedId !== normalizeProviderId(providerId)) {
-        const adapter = getMemoryEmbeddingProvider(resolvedId) ?? directAdapter;
-        return { adapter, resolvedId };
+        const resolvedAdapter = getMemoryEmbeddingProvider(resolvedId);
+        if (resolvedAdapter) {
+          return { adapter: resolvedAdapter, resolvedId };
+        }
       }
     }
     return { adapter: directAdapter };

@@ -326,7 +326,7 @@ describe("memory search config", () => {
     const resolved = resolveMemorySearchConfig(cfg, "main");
 
     expect(resolved?.provider).toBe("openai");
-    expect(resolved?.actualProvider).toBe("openai-compatible");
+    expect(resolved?.actualProvider).toBeUndefined();
     expect(resolved?.model).toBe("text-embedding-3-small");
   });
 
