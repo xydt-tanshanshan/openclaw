@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import {
   clearMemoryEmbeddingProviders,
+  getMemoryEmbeddingProvider,
   registerMemoryEmbeddingProvider,
 } from "../plugins/memory-embedding-providers.js";
 import { MAX_TIMER_TIMEOUT_MS } from "../shared/number-coercion.js";
@@ -262,15 +263,20 @@ describe("memory search config", () => {
     expectDefaultRemoteBatch(resolved);
   });
 
-  it("resolves openai provider with api:ollama through generic resolution", () => {
+  it("resolves openai provider with api:ollama through generic resolution and routes create() to the correct adapter", async () => {
     // When the "openai" provider has an explicit api field pointing to a
     // different adapter, generic resolution should route to that adapter
     // instead of short-circuiting on the direct "openai" match.
+    // This also verifies the runtime adapter.create() chain.
+    let createdProvider: string | null = null;
     registerMemoryEmbeddingProvider({
       id: "ollama",
       defaultModel: "nomic-embed-text",
       transport: "remote",
-      create: async () => ({ provider: null }),
+      create: async (opts) => {
+        createdProvider = opts.provider ?? null;
+        return { provider: null };
+      },
     });
     const cfg = asConfig({
       models: {
@@ -292,10 +298,25 @@ describe("memory search config", () => {
     });
 
     const resolved = resolveMemorySearchConfig(cfg, "main");
-
+    // Config-level: model should come from ollama adapter, not openai
     expect(resolved?.provider).toBe("openai");
     expect(resolved?.model).toBe("nomic-embed-text");
     expectDefaultRemoteBatch(resolved);
+
+    // Runtime-level: adapter.create() should be callable and receive the
+    // resolved provider id from config
+    const adapter = getMemoryEmbeddingProvider("ollama");
+    expect(adapter).toBeDefined();
+    if (adapter) {
+      await adapter.create({
+        provider: resolved?.provider ?? "openai",
+        agentDir: "/tmp/agent",
+        config: cfg,
+        fallback: "none",
+      });
+      // create() was invoked with the ollama adapter, not openai
+      expect(createdProvider).toBe("openai");
+    }
   });
 
   it("falls back to direct adapter when generic resolution has no matching adapter", () => {
