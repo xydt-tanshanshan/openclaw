@@ -249,6 +249,62 @@ describe("createEmbeddingProvider", () => {
     );
   });
 
+  it("routes create() to actualProvider adapter when actualProvider differs from provider", async () => {
+    registerMemoryEmbeddingProvider({
+      id: "openai",
+      transport: "remote",
+      create: async () => ({
+        provider: {
+          id: "openai",
+          model: "text-embedding-3-small",
+          embedQuery: async () => [1],
+          embedBatch: async (texts) => texts.map(() => [1]),
+        },
+      }),
+    });
+    registerMemoryEmbeddingProvider({
+      id: "ollama",
+      transport: "remote",
+      create: async () => ({
+        provider: {
+          id: "ollama",
+          model: "nomic-embed-text",
+          embedQuery: async () => [2],
+          embedBatch: async (texts) => texts.map(() => [2]),
+        },
+      }),
+    });
+
+    const result = await createEmbeddingProvider({
+      ...createOptions("openai"),
+      actualProvider: "ollama",
+    });
+
+    expect(result.provider?.id).toBe("ollama");
+    expect(result.provider?.model).toBe("nomic-embed-text");
+    expect(result.requestedProvider).toBe("openai");
+  });
+
+  it("preserves direct provider routing when actualProvider is not set", async () => {
+    registerMemoryEmbeddingProvider({
+      id: "openai",
+      transport: "remote",
+      create: async () => ({
+        provider: {
+          id: "openai",
+          model: "text-embedding-3-small",
+          embedQuery: async () => [1],
+          embedBatch: async (texts) => texts.map(() => [1]),
+        },
+      }),
+    });
+
+    const result = await createEmbeddingProvider(createOptions("openai"));
+
+    expect(result.provider?.id).toBe("openai");
+    expect(result.requestedProvider).toBe("openai");
+  });
+
   it("uses config-scoped lookup for generic fallback model resolution", () => {
     registerGenericEmbeddingProvider({
       id: "openai-compatible",
