@@ -764,6 +764,7 @@ export async function createChatSession(
         resolveAgentIdFromSessionKey(previousSessionKey),
       parentSessionKey,
       emitCommandHooks: parentSessionKey !== undefined ? true : undefined,
+      adoptDashboard: true,
     },
     {
       ...createChatSessionsLoadOverrides(state),
