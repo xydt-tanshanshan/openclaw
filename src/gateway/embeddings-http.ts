@@ -8,10 +8,15 @@ import {
 } from "@openclaw/normalization-core/string-coerce";
 import { resolveAgentDir } from "../agents/agent-scope.js";
 import { resolveMemorySearchConfig } from "../agents/memory-search.js";
+import {
+  findNormalizedProviderValue,
+  normalizeProviderId,
+} from "../agents/model-selection-normalize.js";
 import { getRuntimeConfig } from "../config/io.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import { logWarn } from "../logger.js";
+import { resolveConfiguredGenericEmbeddingProviderId } from "../plugins/embedding-provider-config.js";
 import {
   getEmbeddingProvider as getGenericEmbeddingProvider,
   type EmbeddingProvider as GenericEmbeddingProvider,
@@ -155,6 +160,28 @@ async function createConfiguredEmbeddingProvider(params: {
     });
     return result.provider ? adaptGenericEmbeddingProvider(result.provider) : null;
   };
+
+  // When a provider config has baseUrl or api overrides (e.g. openai
+  // pointed at a local Ollama), the direct memory adapter would still
+  // route to the default remote endpoint. Resolve to the configured
+  // generic adapter instead so the gateway path matches the agent path.
+  const providerConfig = findNormalizedProviderValue(params.cfg.models?.providers, providerId);
+  const hasProviderOverride = Boolean(
+    providerConfig?.baseUrl?.trim() || providerConfig?.api?.trim(),
+  );
+  if (hasProviderOverride) {
+    const resolvedId = resolveConfiguredGenericEmbeddingProviderId(providerId, params.cfg);
+    if (resolvedId && normalizeProviderId(resolvedId) !== normalizeProviderId(providerId)) {
+      const genericAdapter = getGenericEmbeddingProvider(resolvedId, params.cfg);
+      if (genericAdapter) {
+        const provider = await createWithGenericAdapter(genericAdapter);
+        if (!provider) {
+          throw new Error(`Embedding provider ${resolvedId} is unavailable.`);
+        }
+        return provider;
+      }
+    }
+  }
 
   const adapter = getMemoryEmbeddingProvider(providerId, params.cfg);
   if (adapter) {
