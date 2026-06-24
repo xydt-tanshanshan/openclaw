@@ -172,6 +172,16 @@ async function createConfiguredEmbeddingProvider(params: {
   if (hasProviderOverride) {
     const resolvedId = resolveConfiguredGenericEmbeddingProviderId(providerId, params.cfg);
     if (resolvedId && normalizeProviderId(resolvedId) !== normalizeProviderId(providerId)) {
+      // Prefer memory-specific adapters for resolved providers (e.g. Ollama
+      // registers a memory adapter but may not have a generic one).
+      const resolvedMemoryAdapter = getMemoryEmbeddingProvider(resolvedId, params.cfg);
+      if (resolvedMemoryAdapter) {
+        const provider = await createWithAdapter(resolvedMemoryAdapter);
+        if (!provider) {
+          throw new Error(`Memory embedding provider ${resolvedId} is unavailable.`);
+        }
+        return provider;
+      }
       const genericAdapter = getGenericEmbeddingProvider(resolvedId, params.cfg);
       if (genericAdapter) {
         const provider = await createWithGenericAdapter(genericAdapter);

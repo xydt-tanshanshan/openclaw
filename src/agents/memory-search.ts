@@ -191,6 +191,11 @@ function getConfiguredMemoryEmbeddingProvider(
         if (resolvedAdapter) {
           return { adapter: resolvedAdapter, resolvedId };
         }
+        // The resolved provider has no memory-specific adapter (e.g. openai
+        // with baseUrl overrides resolved to openai-compatible). Return the
+        // resolved ID so the caller can try a generic embedding provider
+        // instead of falling back to the direct adapter.
+        return { adapter: undefined, resolvedId };
       }
     }
     return { adapter: directAdapter };

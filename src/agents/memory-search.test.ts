@@ -300,10 +300,12 @@ describe("memory search config", () => {
     expectDefaultRemoteBatch(resolved);
   });
 
-  it("falls back to direct adapter when generic resolution has no matching adapter", () => {
+  it("sets actualProvider when generic resolution resolves to a provider without a memory adapter", () => {
     // Provider "openai" with a custom baseUrl routes to "openai-compatible"
-    // via generic resolution, but since no "openai-compatible" adapter is
-    // registered, the direct openai adapter is used as fallback.
+    // via generic resolution. Since no "openai-compatible" memory adapter is
+    // registered, the adapter is undefined but actualProvider is still set so
+    // the runtime can try a generic embedding provider instead of silently
+    // falling back to the direct OpenAI adapter (which would ignore baseUrl).
     const cfg = asConfig({
       models: {
         providers: {
@@ -325,8 +327,9 @@ describe("memory search config", () => {
     const resolved = resolveMemorySearchConfig(cfg, "main");
 
     expect(resolved?.provider).toBe("openai");
-    expect(resolved?.actualProvider).toBeUndefined();
-    expect(resolved?.model).toBe("text-embedding-3-small");
+    // actualProvider is set to the resolved ID so the runtime can select the
+    // correct generic embedding adapter for the configured baseUrl.
+    expect(resolved?.actualProvider).toBe("openai-compatible");
   });
 
   it("does not set actualProvider when direct provider has no api or baseUrl hints", () => {
