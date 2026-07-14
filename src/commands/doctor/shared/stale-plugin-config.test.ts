@@ -417,6 +417,9 @@ describe("doctor stale plugin config helpers", () => {
       },
     } as OpenClawConfig;
 
+    // scanStalePluginConfig flags codex in plugins.allow because it is not in
+    // knownIds. Protection happens at the repair-sequencing caller (line 160)
+    // via preservePluginIds, not in the scanner.
     expect(scanStalePluginConfig(cfg)).toEqual([
       {
         pluginId: "codex",
