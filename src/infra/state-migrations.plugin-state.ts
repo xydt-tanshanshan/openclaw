@@ -218,19 +218,26 @@ export async function migrateLegacyInstalledPluginIndex(params: {
       const unresolved = merged.conflicts.filter((pluginId) => !acknowledged.includes(pluginId));
       if (unresolved.length === 0) {
         archiveLegacyInstalledPluginIndex({ sourcePath, changes, warnings });
+      } else {
+        archiveLegacyInstalledPluginIndex({ sourcePath, changes, warnings });
+        changes.push(
+          `Resolved conflicting legacy install records by keeping shared SQLite state for: ${unresolved.join(", ")}`,
+        );
       }
       return {
         changes,
-        warnings:
-          unresolved.length > 0
-            ? [
-                `Left plugin install index in place because shared SQLite state has conflicting plugin install metadata for: ${unresolved.join(", ")}`,
-              ]
-            : [],
+        warnings,
         ...(acknowledged.length > 0
           ? {
               notices: [
                 `Kept canonical shared SQLite plugin install metadata despite differing legacy records for: ${acknowledged.join(", ")}`,
+              ],
+            }
+          : {}),
+        ...(unresolved.length > 0
+          ? {
+              notices: [
+                `Kept shared SQLite plugin install metadata as authoritative for unresolved legacy conflicts: ${unresolved.join(", ")}`,
               ],
             }
           : {}),
