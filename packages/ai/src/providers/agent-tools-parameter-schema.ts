@@ -10,6 +10,7 @@ import {
   uniqueValues,
 } from "@openclaw/normalization-core/string-normalization";
 import type { TSchema } from "typebox";
+import { anchorStringPatterns } from "./anchor-string-patterns.js";
 import { cleanSchemaForGemini } from "./clean-for-gemini.js";
 import { stripUnsupportedSchemaKeywords } from "./schema-keyword-strip.js";
 
@@ -22,6 +23,8 @@ export type ToolSchemaModelCompat = {
   toolSchemaProfile?: string;
   unsupportedToolSchemaKeywords?: string[];
   omitEmptyArrayItems?: boolean;
+  /** Anchor `pattern` fields with `^...$` for providers that reject unanchored regexes (e.g. llama.cpp). */
+  anchorStringPatterns?: boolean;
 };
 
 /** Extracts the compat record whether callers pass a model (`{ compat }`) or the compat itself. */
@@ -57,6 +60,13 @@ export function shouldOmitEmptyArrayItems(
   return extractToolSchemaModelCompat(modelOrCompat)?.omitEmptyArrayItems === true;
 }
 
+/** Whether `pattern` fields must be fully anchored (`^...$`) for this model/provider. */
+export function shouldAnchorStringPatterns(
+  modelOrCompat: { compat?: unknown } | ToolSchemaModelCompat | undefined,
+): boolean {
+  return extractToolSchemaModelCompat(modelOrCompat)?.anchorStringPatterns === true;
+}
+
 export type ToolParameterSchemaOptions = {
   modelProvider?: string;
   modelId?: string;
@@ -78,12 +88,14 @@ function resolveToolParameterSchemaCacheKey(
     resolveUnsupportedToolSchemaKeywords(options?.modelCompat),
   ).toSorted();
   const omitEmptyArrayItems = shouldOmitEmptyArrayItems(options?.modelCompat);
+  const anchorPatterns = shouldAnchorStringPatterns(options?.modelCompat);
   return JSON.stringify([
     normalizedProvider,
     normalizedModelId,
     toolSchemaProfile,
     unsupportedKeywords,
     omitEmptyArrayItems,
+    anchorPatterns,
   ]);
 }
 
@@ -831,14 +843,21 @@ function normalizeToolParameterSchemaUncached(
   const isAnthropicProvider = normalizedProvider.includes("anthropic");
   const unsupportedToolSchemaKeywords = resolveUnsupportedToolSchemaKeywords(options?.modelCompat);
   const omitEmptyArrayItems = shouldOmitEmptyArrayItems(options?.modelCompat);
+  const anchorPatterns = shouldAnchorStringPatterns(options?.modelCompat);
 
   function applyProviderCleaning(s: unknown): TSchema {
     const normalizedSchema = normalizeArraySchemasMissingItems(s);
     const arrayItemsCompatibleSchema = omitEmptyArrayItems
       ? stripEmptyArrayItemsFromArraySchemas(normalizedSchema)
       : normalizedSchema;
+    // Anchor `pattern` fields for providers whose JSON schema converter requires
+    // fully anchored regexes (e.g. llama.cpp). Applied before keyword stripping
+    // so providers that also drop `pattern` are unaffected.
+    const patternAnchoredSchema = anchorPatterns
+      ? anchorStringPatterns(arrayItemsCompatibleSchema)
+      : arrayItemsCompatibleSchema;
     if (isGeminiProvider && !isAnthropicProvider) {
-      const geminiCompatibleSchema = cleanSchemaForGemini(arrayItemsCompatibleSchema);
+      const geminiCompatibleSchema = cleanSchemaForGemini(patternAnchoredSchema);
       return unsupportedToolSchemaKeywords.size > 0
         ? (stripUnsupportedSchemaKeywords(
             geminiCompatibleSchema,
@@ -848,11 +867,11 @@ function normalizeToolParameterSchemaUncached(
     }
     if (unsupportedToolSchemaKeywords.size > 0) {
       return stripUnsupportedSchemaKeywords(
-        arrayItemsCompatibleSchema,
+        patternAnchoredSchema,
         unsupportedToolSchemaKeywords,
       ) as TSchema;
     }
-    return arrayItemsCompatibleSchema as TSchema;
+    return patternAnchoredSchema as TSchema;
   }
 
   const conditionalKey = getTopLevelConditionalKey(schemaRecord);

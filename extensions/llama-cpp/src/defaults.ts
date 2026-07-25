@@ -97,7 +97,15 @@ function buildDefaultLlamaCppModel(): ModelDefinitionConfig {
       modelPath: DEFAULT_LLAMA_CPP_MODEL_URI,
       contextSize: "auto",
     },
-    compat: { supportsTools: true, supportsUsageInStreaming: true },
+    compat: {
+      supportsTools: true,
+      supportsUsageInStreaming: true,
+      // llama.cpp's JSON schema converter rejects regex `pattern` fields that
+      // are not fully anchored with `^...$`. Anchor tool schema patterns before
+      // sending them so local GGUF models accept tool calls without a 400.
+      // See openclaw/openclaw#113562.
+      anchorStringPatterns: true,
+    },
   };
 }
 

@@ -1329,5 +1329,58 @@ describe("normalizeToolParameters", () => {
     const params = result.parameters as { required?: string[] };
     expect(params.required).toEqual(["name"]);
   });
+
+  it("anchors unanchored pattern fields when anchorStringPatterns is enabled", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        // Already anchored: left untouched.
+        alreadyAnchored: { type: "string", pattern: "^agent:.+$" },
+        // Missing both anchors.
+        unanchored: { type: "string", pattern: "agent:.+" },
+        // Missing end anchor only.
+        missingEnd: { type: "string", pattern: "^agent:.+" },
+        // Missing start anchor only.
+        missingStart: { type: "string", pattern: "agent:.+$" },
+        nested: {
+          type: "array",
+          items: { type: "string", pattern: "foo" },
+        },
+        composed: {
+          anyOf: [
+            { type: "string", pattern: "bar" },
+            { type: "string", pattern: "^baz$" },
+          ],
+        },
+      },
+    };
+
+    const result = normalizeToolParameterSchema(schema, {
+      modelCompat: { anchorStringPatterns: true },
+    });
+
+    const props = (result as { properties: Record<string, { pattern?: string; items?: { pattern?: string }; anyOf?: Array<{ pattern?: string }> }> }).properties;
+    expect(props.alreadyAnchored.pattern).toBe("^agent:.+$");
+    expect(props.unanchored.pattern).toBe("^agent:.+$");
+    expect(props.missingEnd.pattern).toBe("^agent:.+$");
+    expect(props.missingStart.pattern).toBe("^agent:.+$");
+    expect(props.nested.items?.pattern).toBe("^foo$");
+    expect(props.composed.anyOf?.[0]?.pattern).toBe("^bar$");
+    expect(props.composed.anyOf?.[1]?.pattern).toBe("^baz$");
+  });
+
+  it("does not anchor pattern fields when anchorStringPatterns is not enabled", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        field: { type: "string", pattern: "agent:.+" },
+      },
+    };
+
+    const result = normalizeToolParameterSchema(schema);
+
+    const props = (result as { properties: { field: { pattern?: string } } }).properties;
+    expect(props.field.pattern).toBe("agent:.+");
+  });
 });
 /* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */

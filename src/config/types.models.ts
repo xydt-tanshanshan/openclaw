@@ -103,6 +103,8 @@ export type ModelCompatConfig = SupportedOpenAICompatFields &
     toolSchemaProfile?: string;
     /** JSON Schema keywords rejected by this provider's tool schema validator. */
     unsupportedToolSchemaKeywords?: string[];
+    /** Anchor `pattern` fields with `^...$` for providers that reject unanchored regexes (e.g. llama.cpp). */
+    anchorStringPatterns?: boolean;
     /** Encoding expected for tool-call arguments in provider payloads. */
     toolCallArgumentsEncoding?: string;
     /** Whether OpenAI-style calls must be reshaped to Anthropic-compatible tool payloads. */
